@@ -6,12 +6,9 @@
 
 using UnityEngine;
 using UnityEditor;
+using UnityEngine.Networking;
 using System.IO;
 using System.Text.RegularExpressions;
-
-#if UNITY_2018_3_OR_NEWER
-#pragma warning disable CS0618
-#endif
 
 namespace Valve.VR
 {
@@ -25,7 +22,7 @@ namespace Valve.VR
         const string doNotShowKey = "SteamVR.DoNotShow.v{0}";
 
         static bool gotVersion = false;
-        static WWW wwwVersion, wwwNotes;
+        static UnityWebRequest wwwVersion, wwwNotes;
         static string version, notes;
         static SteamVR_Update window;
 
@@ -39,21 +36,26 @@ namespace Valve.VR
             if (!gotVersion)
             {
                 if (wwwVersion == null)
-                    wwwVersion = new WWW(versionUrl);
+                {
+                    wwwVersion = UnityWebRequest.Get(versionUrl);
+                    wwwVersion.SendWebRequest();
+                }
 
                 if (!wwwVersion.isDone)
                     return;
 
                 if (UrlSuccess(wwwVersion))
-                    version = wwwVersion.text;
+                    version = wwwVersion.downloadHandler.text;
 
+                wwwVersion.Dispose();
                 wwwVersion = null;
                 gotVersion = true;
 
                 if (ShouldDisplay())
                 {
                     var url = string.Format(notesUrl, version);
-                    wwwNotes = new WWW(url);
+                    wwwNotes = UnityWebRequest.Get(url);
+                    wwwNotes.SendWebRequest();
 
                     window = GetWindow<SteamVR_Update>(true);
                     window.minSize = new Vector2(320, 440);
@@ -67,8 +69,9 @@ namespace Valve.VR
                     return;
 
                 if (UrlSuccess(wwwNotes))
-                    notes = wwwNotes.text;
+                    notes = wwwNotes.downloadHandler.text;
 
+                wwwNotes.Dispose();
                 wwwNotes = null;
 
                 if (notes != "")
@@ -78,11 +81,11 @@ namespace Valve.VR
             EditorApplication.update -= Update;
         }
 
-        static bool UrlSuccess(WWW www)
+        static bool UrlSuccess(UnityWebRequest www)
         {
-            if (!string.IsNullOrEmpty(www.error))
+            if (www.result != UnityWebRequest.Result.Success)
                 return false;
-            if (Regex.IsMatch(www.text, "404 not found", RegexOptions.IgnoreCase))
+            if (Regex.IsMatch(www.downloadHandler.text, "404 not found", RegexOptions.IgnoreCase))
                 return false;
             return true;
         }
@@ -174,7 +177,3 @@ namespace Valve.VR
         }
     }
 }
-
-#if UNITY_2018_3_OR_NEWER
-#pragma warning restore CS0618
-#endif
